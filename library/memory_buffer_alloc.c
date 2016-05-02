@@ -417,6 +417,10 @@ static void buffer_alloc_free( void *ptr )
     heap.total_used -= hdr->size;
 #endif
 
+#if defined(MBEDTLS_MEMORY_BACKTRACE)
+        free( hdr->trace );
+#endif
+
     // Regroup with block before
     //
     if( hdr->prev != NULL && hdr->prev->alloc == 0 )
@@ -432,9 +436,6 @@ static void buffer_alloc_free( void *ptr )
         if( hdr->next != NULL )
             hdr->next->prev = hdr;
 
-#if defined(MBEDTLS_MEMORY_BACKTRACE)
-        free( old->trace );
-#endif
         memset( old, 0, sizeof(memory_header) );
     }
 
@@ -474,9 +475,6 @@ static void buffer_alloc_free( void *ptr )
         if( hdr->next != NULL )
             hdr->next->prev = hdr;
 
-#if defined(MBEDTLS_MEMORY_BACKTRACE)
-        free( old->trace );
-#endif
         memset( old, 0, sizeof(memory_header) );
     }
 
