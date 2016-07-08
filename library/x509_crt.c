@@ -56,6 +56,12 @@
 #define mbedtls_snprintf   snprintf
 #endif
 
+#if defined(MBEDTLS_DEBUG_SUBJECTALTNAME)
+#define mbedtls_san_debug(...) mbedtls_printf(__VA_ARGS__)
+#else
+#define mbedtls_san_debug(...) do {} while(0)
+#endif
+
 #if defined(MBEDTLS_THREADING_C)
 #include "mbedtls/threading.h"
 #endif
@@ -466,17 +472,26 @@ static int x509_get_subject_alt_name( unsigned char **p,
                     MBEDTLS_ERR_ASN1_OUT_OF_DATA );
 
         tag = **p;
+
         (*p)++;
         if( ( ret = mbedtls_asn1_get_len( p, end, &tag_len ) ) != 0 )
             return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret );
+
+        mbedtls_san_debug("processing tag: %02x&%02x=%02x tag_len: %u\n",
+               tag, MBEDTLS_ASN1_CONTEXT_SPECIFIC,
+               ( tag & MBEDTLS_ASN1_CONTEXT_SPECIFIC ),
+               (unsigned int)tag_len);
 
         if( ( tag & MBEDTLS_ASN1_CONTEXT_SPECIFIC ) != MBEDTLS_ASN1_CONTEXT_SPECIFIC )
             return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
                     MBEDTLS_ERR_ASN1_UNEXPECTED_TAG );
 
-        /* Skip everything but DNS name */
-        if( tag != ( MBEDTLS_ASN1_CONTEXT_SPECIFIC | 2 ) )
+        /* Skip everything but dNSname(2) and otherName(0) */
+        if( (tag != ( MBEDTLS_ASN1_CONTEXT_SPECIFIC | 2 )) &&
+            (tag != ( MBEDTLS_ASN1_CONTEXT_SPECIFIC | 0x20 | 0 )))
         {
+          //printf("  skipped tag %02x tag_len: %u\n", tag, (unsigned int)tag_len);
+
             *p += tag_len;
             continue;
         }
@@ -711,7 +726,7 @@ static int x509_crt_parse_der_core( mbedtls_x509_crt *crt, const unsigned char *
 
     memcpy( p, buf, crt->raw.len );
 
-    // Direct pointers to the new buffer 
+    // Direct pointers to the new buffer
     p += crt->raw.len - len;
     end = crt_end = p + len;
 
@@ -1222,20 +1237,84 @@ static int x509_info_subject_alt_name( char **buf, size_t *size,
     const char *sep = "";
     size_t sep_len = 0;
 
+    mbedtls_san_debug("printing subject alt name(SAN)\n");
+
     while( cur != NULL )
     {
+      mbedtls_x509_buf extn_oid = {0, 0, NULL};
+      unsigned char *end_ext_data = NULL;
+      size_t end_ext_len = cur->buf.len;
+      size_t oNameLen;
+      size_t utf8len;
+      int ret;
+
         if( cur->buf.len + sep_len >= n )
         {
             *p = '\0';
             return( MBEDTLS_ERR_X509_BUFFER_TOO_SMALL );
         }
 
-        n -= cur->buf.len + sep_len;
-        for( i = 0; i < sep_len; i++ )
-            *p++ = sep[i];
-        for( i = 0; i < cur->buf.len; i++ )
-            *p++ = cur->buf.p[i];
+        switch(cur->buf.tag) {
+        case MBEDTLS_ASN1_PRIVATE:  /* otherName, followed by OID */
 
+          /* get the OID from the next bytes. */
+          end_ext_data = cur->buf.p;
+          end_ext_len  = cur->buf.len;
+
+          if( ( ret = mbedtls_asn1_get_tag( &end_ext_data,
+                                            end_ext_data+cur->buf.len, &extn_oid.len,
+                                            MBEDTLS_ASN1_OID ) ) != 0 ) {
+            return ret;
+          }
+
+          extn_oid.p    = end_ext_data;
+          mbedtls_san_debug("oid: %u %u\n", (unsigned int)extn_oid.len,
+                 (unsigned int)MBEDTLS_OID_SIZE( MBEDTLS_OID_EUI64 ));
+          //hexdump(extn_oid.p,   0, extn_oid.len);
+          end_ext_data += extn_oid.len;
+          end_ext_len  -= extn_oid.len;
+
+          if( extn_oid.len != MBEDTLS_OID_SIZE( MBEDTLS_OID_EUI64 ) ||
+              memcmp( extn_oid.p, MBEDTLS_OID_EUI64, extn_oid.len ) != 0 ) {
+            mbedtls_san_debug("does not match EUI64\n");
+            return(MBEDTLS_ERR_PK_FEATURE_UNAVAILABLE);
+          }
+
+          if( ( ret = mbedtls_asn1_get_tag( &end_ext_data,
+                                            end_ext_data+end_ext_len,
+                                            &oNameLen,
+                                            MBEDTLS_ASN1_PRIVATE ) ) != 0 ) {
+            mbedtls_san_debug("failed: %d\n", ret);
+            return ret;
+          }
+          end_ext_len  -= 2;
+
+          if( ( ret = mbedtls_asn1_get_tag( &end_ext_data,
+                                            end_ext_data+end_ext_len,
+                                            &utf8len,
+                                            MBEDTLS_ASN1_UTF8_STRING ) ) != 0 ) {
+            mbedtls_san_debug("failed: %d\n", ret);
+            return ret;
+          }
+
+          //mbedtls_san_debug("oName:\n");
+          //hexdump(end_ext_data, 0, utf8len);
+          end_ext_len  = utf8len;
+          break;
+
+        default:
+          end_ext_data = cur->buf.p;
+          end_ext_len  = cur->buf.len;
+          break;
+        }
+
+        if(n > (end_ext_len+sep_len)) {
+          for( i = 0; i < sep_len; i++ )
+            *p++ = sep[i];
+          for( i = 0; i < end_ext_len; i++ )
+            *p++ = end_ext_data[i];
+        }
+        n -= end_ext_len + sep_len;
         sep = ", ";
         sep_len = 2;
 

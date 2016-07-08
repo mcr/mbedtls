@@ -8,6 +8,8 @@ option(ENABLE_PROGRAMS "Build mbed TLS programs." ON)
 
 option(UNSAFE_BUILD "Allow unsafe builds. These builds ARE NOT SECURE." OFF)
 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DMBEDTLS_USER_CONFIG_FILE=\\\"mbedtls/mcrhack.h\\\"")
+
 # the test suites currently have compile errors with MSVC
 if(MSVC)
     option(ENABLE_TESTING "Build mbed TLS tests." OFF)

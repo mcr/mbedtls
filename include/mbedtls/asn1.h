@@ -87,6 +87,7 @@
 #define MBEDTLS_ASN1_PRIMITIVE               0x00
 #define MBEDTLS_ASN1_CONSTRUCTED             0x20
 #define MBEDTLS_ASN1_CONTEXT_SPECIFIC        0x80
+#define MBEDTLS_ASN1_PRIVATE                 0xa0
 /* \} name */
 /* \} addtogroup asn1_module */
 

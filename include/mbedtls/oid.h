@@ -97,7 +97,7 @@
 #define MBEDTLS_OID_ID_CE                       MBEDTLS_OID_ISO_CCITT_DS "\x1D" /**< id-ce OBJECT IDENTIFIER  ::=  {joint-iso-ccitt(2) ds(5) 29} */
 
 /**
- * Private Internet Extensions
+ * IETF (Private) Internet Extensions
  * { iso(1) identified-organization(3) dod(6) internet(1)
  *                      security(5) mechanisms(5) pkix(7) }
  */
@@ -371,6 +371,17 @@
  *   iso(1) member-body(2) us(840) ansi-X9-62(10045) signatures(4)
  *   ecdsa-with-SHA2(3) 4 } */
 #define MBEDTLS_OID_ECDSA_SHA512            MBEDTLS_OID_ANSI_X9_62_SIG_SHA2 "\x04"
+
+
+/*
+ * { iso(1) identified-organization(3) dod(6) internet(1)
+ *                      private(4) enterprise(1) }
+ */
+#define MBEDTLS_OID_PEN                        MBEDTLS_OID_ISO_IDENTIFIED_ORG MBEDTLS_OID_ORG_DOD "\x01\x04\x01"
+
+#define MBEDTLS_OID_ORG_SANDELMAN              "\x82\xEE\x52"  /* {sandelman(46930)} */
+#define MBEDTLS_OID_EUI64                      MBEDTLS_OID_PEN MBEDTLS_OID_ORG_SANDELMAN "\x01" /* .1 */
+
 
 #ifdef __cplusplus
 extern "C" {
