@@ -9,6 +9,7 @@ set(executables
     crl_app
     load_roots
     req_app
+    bootcert
 )
 
 foreach(exe IN LISTS executables)
