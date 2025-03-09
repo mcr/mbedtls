@@ -1704,7 +1704,8 @@ static int x509_get_other_name( const mbedtls_x509_buf *subject_alt_name,
     size_t len;
     unsigned char *p = subject_alt_name->p;
     const unsigned char *end = p + subject_alt_name->len;
-    mbedtls_x509_buf cur_oid;
+    mbedtls_x509_buf *extra_buf;
+    mbedtls_x509_buf *val_buf;
 
     if( ( subject_alt_name->tag &
         ( MBEDTLS_ASN1_TAG_CLASS_MASK | MBEDTLS_ASN1_TAG_VALUE_MASK ) ) !=
@@ -1720,55 +1721,78 @@ static int x509_get_other_name( const mbedtls_x509_buf *subject_alt_name,
                                       MBEDTLS_ASN1_OID ) ) != 0 )
         return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_X509_INVALID_EXTENSIONS, ret ) );
 
-    cur_oid.tag = MBEDTLS_ASN1_OID;
-    cur_oid.p = p;
-    cur_oid.len = len;
+    other_name->type_id.tag = MBEDTLS_ASN1_OID;
+    other_name->type_id.p = p;
+    other_name->type_id.len = len;
+    val_buf = NULL;
+    extra_buf = NULL;
 
     /*
-     * Only HwModuleName is currently supported.
+     * Only HwModuleName is currently supported, and a generic container.
      */
-    if( MBEDTLS_OID_CMP( MBEDTLS_OID_ON_HW_MODULE_NAME, &cur_oid ) != 0 )
+    if( MBEDTLS_OID_CMP( MBEDTLS_OID_ON_HW_MODULE_NAME, &other_name->type_id ) == 0 )
     {
-        return( MBEDTLS_ERR_X509_FEATURE_UNAVAILABLE );
+      val_buf = &other_name->value.hardware_module_name.val;
+      extra_buf = &other_name->type_id;
+    } else {
+      val_buf = &other_name->value.generic_other_name.val;
     }
 
+    /* check for overrun, return error */
     if( p + len >= end )
-    {
+      {
         mbedtls_platform_zeroize( other_name, sizeof( *other_name ) );
         return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_X509_INVALID_EXTENSIONS,
-                MBEDTLS_ERR_ASN1_LENGTH_MISMATCH ) );
+                                   MBEDTLS_ERR_ASN1_LENGTH_MISMATCH ) );
+      }
+    p += len;
+    if(extra_buf) {
+      if( ( ret = mbedtls_asn1_get_tag( &p, end, &len,
+                                        MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_CONTEXT_SPECIFIC ) ) != 0 )
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_X509_INVALID_EXTENSIONS, ret ) );
+
+      if( ( ret = mbedtls_asn1_get_tag( &p, end, &len,
+                                        MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ) ) != 0 ) {
+        fprintf(stderr, "get_tag sequence\n");
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_X509_INVALID_EXTENSIONS, ret ) );
+      }
+
+      if( ( ret = mbedtls_asn1_get_tag( &p, end, &len, MBEDTLS_ASN1_OID ) ) != 0 ) {
+        fprintf(stderr, "get_tag ASN1_OID\n");
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_X509_INVALID_EXTENSIONS, ret ) );
+      }
+
+      extra_buf->tag = MBEDTLS_ASN1_OID;
+      extra_buf->p = p;
+      extra_buf->len = len;
+
+      /* check for overrun, return error */
+      if( p + len >= end )
+        {
+          mbedtls_platform_zeroize( other_name, sizeof( *other_name ) );
+          return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_X509_INVALID_EXTENSIONS,
+                                     MBEDTLS_ERR_ASN1_LENGTH_MISMATCH ) );
+        }
+      p += len;
     }
-    p += len;
-    if( ( ret = mbedtls_asn1_get_tag( &p, end, &len,
-            MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_CONTEXT_SPECIFIC ) ) != 0 )
-        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_X509_INVALID_EXTENSIONS, ret ) );
 
     if( ( ret = mbedtls_asn1_get_tag( &p, end, &len,
-                     MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ) ) != 0 )
-       return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_X509_INVALID_EXTENSIONS, ret ) );
+                                      MBEDTLS_ASN1_OCTET_STRING ) ) != 0 ) {
 
-    if( ( ret = mbedtls_asn1_get_tag( &p, end, &len, MBEDTLS_ASN1_OID ) ) != 0 )
-        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_X509_INVALID_EXTENSIONS, ret ) );
-
-    other_name->value.hardware_module_name.oid.tag = MBEDTLS_ASN1_OID;
-    other_name->value.hardware_module_name.oid.p = p;
-    other_name->value.hardware_module_name.oid.len = len;
-
-    if( p + len >= end )
-    {
-        mbedtls_platform_zeroize( other_name, sizeof( *other_name ) );
-        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_X509_INVALID_EXTENSIONS,
-                MBEDTLS_ERR_ASN1_LENGTH_MISMATCH ) );
+      if( ( ret = mbedtls_asn1_get_tag( &p, end, &len,
+                                        MBEDTLS_ASN1_UTF8_STRING ) ) != 0 ) {
+        if( ( ret = mbedtls_asn1_get_tag( &p, end, &len,
+                                          MBEDTLS_ASN1_PRIVATE ) ) != 0 ) {
+          return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_X509_INVALID_EXTENSIONS, ret ) );
+        }
+      }
     }
-    p += len;
-    if( ( ret = mbedtls_asn1_get_tag( &p, end, &len,
-                                      MBEDTLS_ASN1_OCTET_STRING ) ) != 0 )
-        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_X509_INVALID_EXTENSIONS, ret ) );
 
-    other_name->value.hardware_module_name.val.tag = MBEDTLS_ASN1_OCTET_STRING;
-    other_name->value.hardware_module_name.val.p = p;
-    other_name->value.hardware_module_name.val.len = len;
+    val_buf->tag = MBEDTLS_ASN1_OCTET_STRING;
+    val_buf->p = p;
+    val_buf->len = len;
     p += len;
+
     if( p != end )
     {
         mbedtls_platform_zeroize( other_name,
@@ -1874,8 +1898,7 @@ static int x509_info_subject_alt_name( char **buf, size_t *size,
                 ret = mbedtls_snprintf( p, n, "\n%s    otherName :", prefix );
                 MBEDTLS_X509_SAFE_SNPRINTF;
 
-                if( MBEDTLS_OID_CMP( MBEDTLS_OID_ON_HW_MODULE_NAME,
-                                     &other_name->value.hardware_module_name.oid ) != 0 )
+                if( MBEDTLS_OID_CMP( MBEDTLS_OID_ON_HW_MODULE_NAME, &other_name->type_id ) == 0 )
                 {
                     ret = mbedtls_snprintf( p, n, "\n%s        hardware module name :", prefix );
                     MBEDTLS_X509_SAFE_SNPRINTF;
@@ -1901,6 +1924,32 @@ static int x509_info_subject_alt_name( char **buf, size_t *size,
                     n -= other_name->value.hardware_module_name.val.len;
 
                 }/* MBEDTLS_OID_ON_HW_MODULE_NAME */
+                else {
+                    ret = mbedtls_snprintf( p, n, "\n%s        generic other name :", prefix );
+                    MBEDTLS_X509_SAFE_SNPRINTF;
+
+                    ret = mbedtls_oid_get_numeric_string( p, n, &other_name->value.generic_other_name.oid );
+                    MBEDTLS_X509_SAFE_SNPRINTF;
+
+                    ret = mbedtls_snprintf( p, n, "\n%s            other hexdump : ", prefix );
+                    MBEDTLS_X509_SAFE_SNPRINTF;
+
+                    if( other_name->value.generic_other_name.val.len >= n )
+                    {
+                        *p = '\0';
+                        return( MBEDTLS_ERR_X509_BUFFER_TOO_SMALL );
+                    }
+
+#if 0
+                    *p = '\0';
+                    /* this needs to be a hexdump */
+                    memcpy( p, other_name->value.hardware_module_name.val.p,
+                            other_name->value.hardware_module_name.val.len );
+                    p += other_name->value.hardware_module_name.val.len;
+
+                    n -= other_name->value.hardware_module_name.val.len;
+#endif
+                }
             }
             break;
 

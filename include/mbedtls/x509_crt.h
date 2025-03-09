@@ -133,6 +133,17 @@ typedef struct mbedtls_x509_san_other_name
             mbedtls_x509_buf val;               /**< The named value. */
         }
         hardware_module_name;
+
+        /**
+         * If it's not one of the above types, then it's collected into this
+         * generic container.
+         */
+        struct
+        {
+            mbedtls_x509_buf oid;               /**< The object identifier. */
+            mbedtls_x509_buf val;               /**< The named value. */
+        }
+        generic_other_name;
     }
     value;
 }
