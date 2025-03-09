@@ -21,11 +21,7 @@
  *  This file is part of mbed TLS (https://tls.mbed.org)
  */
 
-#if !defined(MBEDTLS_CONFIG_FILE)
-#include "mbedtls/config.h"
-#else
-#include MBEDTLS_CONFIG_FILE
-#endif
+#include "mbedtls/build_info.h"
 
 #if defined(MBEDTLS_PLATFORM_C)
 #include "mbedtls/platform.h"
@@ -37,7 +33,7 @@
 
 #include "mbedtls/entropy.h"
 #include "mbedtls/ctr_drbg.h"
-#include "mbedtls/net.h"
+#include "mbedtls/net_sockets.h"
 #include "mbedtls/ssl.h"
 #include "mbedtls/x509.h"
 
@@ -124,12 +120,9 @@ static int my_verify( void *data, mbedtls_x509_crt *crt, int depth, uint32_t *fl
 int main( int argc, char *argv[] )
 {
     int ret = 0;
-    mbedtls_net_context server_fd;
     unsigned char buf[1024];
     mbedtls_entropy_context entropy;
     mbedtls_ctr_drbg_context ctr_drbg;
-    mbedtls_ssl_context ssl;
-    mbedtls_ssl_config conf;
     mbedtls_x509_crt cacert;
     mbedtls_x509_crt clicert;
     mbedtls_x509_crl cacrl;
@@ -142,10 +135,7 @@ int main( int argc, char *argv[] )
     /*
      * Set to sane values
      */
-    mbedtls_net_init( &server_fd );
     mbedtls_ctr_drbg_init( &ctr_drbg );
-    mbedtls_ssl_init( &ssl );
-    mbedtls_ssl_config_init( &conf );
     mbedtls_x509_crt_init( &cacert );
     mbedtls_x509_crt_init( &clicert );
     /* Zeroize structure as CRL parsing is not supported and we have to pass
@@ -315,7 +305,6 @@ int main( int argc, char *argv[] )
 
 exit:
 
-    mbedtls_net_free( &server_fd );
     mbedtls_x509_crt_free( &cacert );
     mbedtls_x509_crt_free( &clicert );
     mbedtls_pk_free( &pkey );
