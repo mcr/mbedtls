@@ -209,7 +209,7 @@ int main( int argc, char *argv[] )
 
     if( ret < 0 )
     {
-        mbedtls_printf( " failed\n  !  mbedtls_x509_crt_parse returned -0x%x\n\n", -ret );
+      mbedtls_printf( " failed\n  !  mbedtls_x509_crt_parse returned -0x%x\n\n", (unsigned)-ret );
         goto exit;
     }
 
@@ -220,7 +220,7 @@ int main( int argc, char *argv[] )
     {
         if( ( ret = mbedtls_x509_crl_parse_file( &cacrl, opt.crl_file ) ) != 0 )
         {
-            mbedtls_printf( " failed\n  !  mbedtls_x509_crl_parse returned -0x%x\n\n", -ret );
+            mbedtls_printf( " failed\n  !  mbedtls_x509_crl_parse returned -0x%x\n\n", (unsigned)-ret );
             goto exit;
         }
 
