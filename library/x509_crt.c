@@ -1817,6 +1817,7 @@ int mbedtls_x509_parse_subject_alt_name( const mbedtls_x509_buf *san_buf,
         case( MBEDTLS_ASN1_CONTEXT_SPECIFIC | MBEDTLS_X509_SAN_OTHER_NAME ):
         {
             mbedtls_x509_san_other_name other_name;
+	    memset(&other_name, 0, sizeof(mbedtls_x509_san_other_name));
 
             ret = x509_get_other_name( san_buf, &other_name );
             if( ret != 0 )
